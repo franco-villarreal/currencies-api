@@ -41,11 +41,13 @@ export class RateService {
 
   private async getOriginalRate(pair: string): Promise<number> {
     const { base, symbol } = this.parsePair(pair);
+    // TODO: API Integration
     /*
     const {
       data: { rates },
     } = await axios.get(`${FIXER_BASE_URL}/latest?access_key=${FIXER_API_KEY}`);
     */
+    // TODO: Delete this const
     const rates = {
       EUR: 1,
       USD: 1.08,
@@ -53,6 +55,7 @@ export class RateService {
     };
     const baseValue = rates[base];
     const symbolValue = rates[symbol];
+    // TODO: Throw service exception and implement a especific filter
     if (!baseValue || !symbolValue) {
       throw new Error('Provided pass is not valid');
     }
