@@ -1,8 +1,8 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   Logger,
-  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -39,7 +39,7 @@ export class RateService {
       Logger.error(
         `There was an error obtaining rates: ${error} ${error.stack}`,
       );
-      if (error instanceof NotFoundException) {
+      if (error instanceof BadRequestException) {
         throw error;
       }
       throw new InternalServerErrorException(error.message);
@@ -79,28 +79,6 @@ export class RateService {
     }
   }
 
-  async getRatesById(id: number): Promise<Rate> {
-    try {
-      return this.rateModel.findById(id);
-    } catch (error) {
-      Logger.error(
-        `There was an error obtaining rates: ${error} ${error.stack}`,
-      );
-      throw new InternalServerErrorException(error.message);
-    }
-  }
-
-  async deleteRatesById(id: number): Promise<void> {
-    try {
-      await this.rateModel.deleteOne({ _id: id });
-    } catch (error) {
-      Logger.error(
-        `There was an error obtaining rates: ${error} ${error.stack}`,
-      );
-      throw new InternalServerErrorException(error.message);
-    }
-  }
-
   private parsePair(pair: string) {
     return {
       base: pair.substring(0, 3),
@@ -119,7 +97,7 @@ export class RateService {
     const symbolValue = rates[symbol];
 
     if (!baseValue || !symbolValue) {
-      throw new NotFoundException('Provided pair is not found');
+      throw new BadRequestException('Provided pair is not valid');
     }
 
     return symbolValue / baseValue;
