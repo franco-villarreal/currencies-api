@@ -1,35 +1,104 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import axios from 'axios';
-import { CreateRateRequestDTO } from 'src/dto/CreateRateRequestDTO';
-import { Rate, RateDocument } from 'src/schemas/Rate';
+import { CreateRateRequestDTO } from '../dto/CreateRateRequestDTO';
+import { Rate, RateDocument } from '../schemas/Rate';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 require('dotenv').config();
+
 const { FIXER_BASE_URL, FIXER_API_KEY } = process.env;
 
 @Injectable()
 export class RateService {
   constructor(@InjectModel(Rate.name) private rateModel: Model<RateDocument>) {}
 
-  async createRate(payload: CreateRateRequestDTO) {
-    const { pair, feePercent } = payload;
-    const originalRate = await this.getOriginalRate(pair);
-    const feeAmount = (originalRate * feePercent) / 100;
+  async createRates(payload: CreateRateRequestDTO): Promise<Rate> {
+    try {
+      const { pair, feePercent } = payload;
+      const originalRate = await this.getOriginalRate(pair);
+      const feeAmount = (originalRate * feePercent) / 100;
 
-    const createdRate = new this.rateModel({
-      pair,
-      originalRate,
-      feePercent,
-      feeAmount,
-      rate: feeAmount + originalRate,
-    });
+      const createdRate = new this.rateModel({
+        pair,
+        originalRate,
+        feePercent,
+        feeAmount,
+        rate: feeAmount + originalRate,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
-    return createdRate.save();
+      return createdRate.save();
+    } catch (error) {
+      Logger.error(
+        `There was an error obtaining rates: ${error} ${error.stack}`,
+      );
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(error.message);
+    }
   }
 
-  async getRates() {
-    return this.rateModel.find();
+  async getRates(): Promise<Rate[]> {
+    try {
+      return this.rateModel.find();
+    } catch (error) {
+      Logger.error(
+        `There was an error obtaining rates: ${error} ${error.stack}`,
+      );
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async getLatestRates(): Promise<Rate[]> {
+    try {
+      const response = [];
+      const query = await this.rateModel.aggregate([
+        {
+          $group: { _id: '$pair', Files: { $push: '$$ROOT' } },
+        },
+        { $sort: { createdAt: -1 } },
+      ]);
+
+      query.forEach((result) => {
+        response.push(result.Files[0]);
+      });
+      return response;
+    } catch (error) {
+      Logger.error(
+        `There was an error obtaining rates: ${error} ${error.stack}`,
+      );
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async getRatesById(id: number): Promise<Rate> {
+    try {
+      return this.rateModel.findById(id);
+    } catch (error) {
+      Logger.error(
+        `There was an error obtaining rates: ${error} ${error.stack}`,
+      );
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async deleteRatesById(id: number): Promise<void> {
+    try {
+      await this.rateModel.deleteOne({ _id: id });
+    } catch (error) {
+      Logger.error(
+        `There was an error obtaining rates: ${error} ${error.stack}`,
+      );
+      throw new InternalServerErrorException(error.message);
+    }
   }
 
   private parsePair(pair: string) {
@@ -41,23 +110,16 @@ export class RateService {
 
   private async getOriginalRate(pair: string): Promise<number> {
     const { base, symbol } = this.parsePair(pair);
-    // TODO: API Integration
-    /*
+
     const {
       data: { rates },
     } = await axios.get(`${FIXER_BASE_URL}/latest?access_key=${FIXER_API_KEY}`);
-    */
-    // TODO: Delete this const
-    const rates = {
-      EUR: 1,
-      USD: 1.08,
-      ARS: 118.332543,
-    };
+
     const baseValue = rates[base];
     const symbolValue = rates[symbol];
-    // TODO: Throw service exception and implement a especific filter
+
     if (!baseValue || !symbolValue) {
-      throw new Error('Provided pass is not valid');
+      throw new NotFoundException('Provided pair is not found');
     }
 
     return symbolValue / baseValue;

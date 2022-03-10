@@ -7,14 +7,24 @@ export type RateDocument = Rate & Document;
 export class Rate {
   @Prop()
   pair: string;
+
   @Prop()
   originalRate: number;
+
   @Prop()
   feePercent: number;
+
   @Prop()
   feeAmount: number;
+
   @Prop()
   rate: number;
+
+  @Prop()
+  createdAt: Date;
+
+  @Prop()
+  updatedAt: Date;
 }
 
 export const RateSchema = SchemaFactory.createForClass(Rate);
